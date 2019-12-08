@@ -57,12 +57,13 @@ namespace OrangeBot
             _Client.Log += _Log;
             _Client.ReactionAdded += _OnReactionAdded;
             _Client.MessageDeleted += _OnMessageDeleted;
+            _Client.MessagesBulkDeleted += _OnBulkMessagesDeleted;
             _Client.MessageReceived += _OnMessageReceived;
             _Client.MessageUpdated += _OnMessageUpdated;
             _Client.UserBanned += _OnUserBanned;
+            _Client.UserUnbanned += _OnUserUnbanned;
             _Client.UserLeft += _OnUserLeft;
             _Client.UserJoined += _OnUserJoined;
-
             _Client.Ready += _OnReady;
 
             await _Client.LoginAsync(TokenType.Bot, token);
@@ -131,7 +132,7 @@ namespace OrangeBot
                 Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
                 Description = "User joined",
                 Timestamp = DateTime.Now,
-                Footer = new EmbedFooterBuilder() { Text = "Event" }
+                Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
             }, _AuditLogChannel);
         }
 
@@ -142,7 +143,7 @@ namespace OrangeBot
                 Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
                 Description = "User left",
                 Timestamp = DateTime.Now,
-                Footer = new EmbedFooterBuilder() { Text = "Event" }
+                Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
             }, _AuditLogChannel);
         }
 
@@ -153,8 +154,28 @@ namespace OrangeBot
                 Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
                 Description = "User banned",
                 Timestamp = DateTime.Now,
-                Footer = new EmbedFooterBuilder() { Text = "Event" }
+                Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
             }, _AuditLogChannel);
+        }
+
+        private async Task _OnUserUnbanned(SocketUser user, SocketGuild guild)
+        {
+            _SendEmbed(new EmbedBuilder()
+            {
+                Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
+                Description = "User unbanned",
+                Timestamp = DateTime.Now,
+                Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
+            }, _AuditLogChannel);
+        }
+
+        private async Task _OnBulkMessagesDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> arg1, ISocketMessageChannel arg2)
+        {
+            // TODO? from log:
+            // [Discord.Net] A bulk delete event has been received, 
+            // but the event handling behavior has not been set. 
+            // To supress this message, set the ExclusiveBulkDelete configuration property. 
+            // This message will appear only once.
         }
 
         private async Task _OnMessageUpdated(Cacheable<IMessage, ulong> message, SocketMessage sMessage, ISocketMessageChannel channel)
