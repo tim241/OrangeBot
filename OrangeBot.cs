@@ -18,10 +18,18 @@ namespace OrangeBot
         private Emoji _PinEmote { get; set; }
         private List<ulong> _PinnedMessages { get; set; }
         private int _PinEmoteCount { get; set; }
-        private ulong _PinMessageChannel { get; set; }
 
-        private ulong _AuditLogChannel { get; set; }
+        private ulong _GuildId { get; set; }
+        private ulong _PinMessageChannelId { get; set; }
+        private ulong _AuditLogChannelId { get; set; }
 
+        private SocketGuild _Guild { get; set; }
+        private IMessageChannel _PinMessageChannel { get; set; }
+        private IMessageChannel _AuditLogChannel { get; set; }
+
+        private int _DictionaryLimit { get; set; }
+
+        private Dictionary<ulong, IMessage> _Messages { get; set; }
         public OrangeBot()
         {
             _Client = new DiscordSocketClient();
@@ -29,8 +37,15 @@ namespace OrangeBot
             _PinnedMessages = new List<ulong>();
             _PinEmoteCount = 4;
 
-            _PinMessageChannel = 0;
-            _AuditLogChannel = 0;
+            _GuildId = 0;
+            _PinMessageChannelId = 0;
+            _AuditLogChannelId = 0;
+
+            // this consumes ~400 MB of RAM
+            _DictionaryLimit = 10000000;
+
+            _Messages = new Dictionary<ulong, IMessage>();
+>>>>>>> e9a0a22... update
 
             BotMain().GetAwaiter().GetResult();
         }
@@ -42,8 +57,14 @@ namespace OrangeBot
             _Client.Log += _Log;
             _Client.ReactionAdded += _OnReactionAdded;
             _Client.MessageDeleted += _OnMessageDeleted;
+            _Client.MessageReceived += _OnMessageReceived;
+            _Client.MessageUpdated += _OnMessageUpdated;
+            _Client.UserBanned += _OnUserBanned;
+            _Client.UserLeft += _OnUserLeft;
+            _Client.UserJoined += _OnUserJoined;
+
             _Client.Ready += _OnReady;
-            
+
             await _Client.LoginAsync(TokenType.Bot, token);
             await _Client.StartAsync();
 
@@ -52,20 +73,25 @@ namespace OrangeBot
 
         private async Task _OnReady()
         {
-            // fill _PunnedMessages List
-            IMessageChannel pinMessageChannel = (IMessageChannel)_Client.GetChannel(_PinMessageChannel);
+            // init the guild(s) & channel(s)
+            _Guild = _Client.GetGuild(_GuildId);
+            _PinMessageChannel = (IMessageChannel)_Client.GetChannel(_PinMessageChannelId);
+            _AuditLogChannel = (IMessageChannel)_Client.GetChannel(_AuditLogChannelId);
 
-            IEnumerable<IMessage> messages = 
-                await pinMessageChannel.GetMessagesAsync().FlattenAsync();
-            
+            // fill _PunnedMessages List
+            IEnumerable<IMessage> messages =
+                await _PinMessageChannel.GetMessagesAsync().FlattenAsync();
+
             messages.ToList().ForEach(m =>
                 m.Embeds.ToList().ForEach(e =>
                     {
-                        if(ulong.TryParse(e.Footer.Value.Text, out ulong mId))
+                        if (ulong.TryParse(e.Footer.Value.Text, out ulong mId))
                             _PinnedMessages.Add(mId);
                     }
                 )
             );
+
+            await _QueryMessages(false);
         }
 
         private Task _Log(LogMessage message)
@@ -76,28 +102,103 @@ namespace OrangeBot
             return Task.CompletedTask;
         }
 
-        
-        private async Task _OnMessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
+        // fills _Messages dictionary
+        private async Task _QueryMessages(bool clear)
         {
-            // TODO
-            // doesn't work
-            // so maybe manually track the messages?
+            if (clear)
+                _Messages.Clear();
 
-            if(!message.HasValue)
+            foreach (IMessageChannel channel in _Guild.TextChannels)
+            {
+                try
+                {
+                    foreach (IMessage message in channel.GetMessagesAsync(1000).FlattenAsync().Result)
+                    {
+                        _Messages.Add(message.Id, message);
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignore, go to next channel
+                }
+            }
+        }
+
+        private async Task _OnUserJoined(SocketGuildUser user)
+        {
+            _SendEmbed(new EmbedBuilder()
+            {
+                Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
+                Description = "User joined",
+                Timestamp = DateTime.Now,
+                Footer = new EmbedFooterBuilder() { Text = "Event" }
+            }, _AuditLogChannel);
+        }
+
+        private async Task _OnUserLeft(SocketGuildUser user)
+        {
+            _SendEmbed(new EmbedBuilder()
+            {
+                Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
+                Description = "User left",
+                Timestamp = DateTime.Now,
+                Footer = new EmbedFooterBuilder() { Text = "Event" }
+            }, _AuditLogChannel);
+        }
+
+        private async Task _OnUserBanned(SocketUser user, SocketGuild guild)
+        {
+            _SendEmbed(new EmbedBuilder()
+            {
+                Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
+                Description = "User banned",
+                Timestamp = DateTime.Now,
+                Footer = new EmbedFooterBuilder() { Text = "Event" }
+            }, _AuditLogChannel);
+        }
+
+        private async Task _OnMessageUpdated(Cacheable<IMessage, ulong> message, SocketMessage sMessage, ISocketMessageChannel channel)
+        {
+            if (!_Messages.ContainsKey(sMessage.Id))
+                _Messages.Add(sMessage.Id, sMessage);
+            else
+                _Messages[sMessage.Id] = sMessage;
+        }
+
+        private async Task _OnMessageReceived(SocketMessage message)
+        {
+            //  let's strip the Dictionary once we reach the limit
+            if (_Messages.Count >= _DictionaryLimit)
+                _QueryMessages(true);
+            else
+                _Messages.Add(message.Id, message);
+        }
+
+        private async Task _OnMessageDeleted(Cacheable<IMessage, ulong> message1, ISocketMessageChannel channel)
+        {
+            if (!_Messages.ContainsKey(message1.Id))
                 return;
 
-            IMessageChannel channel1 = (IMessageChannel)_Client.GetChannel(_AuditLogChannel);
+            IMessage message = _Messages[message1.Id];
 
-            EmbedBuilder eBuilder = new EmbedBuilder()
+            // return when invalid Author
+            if (message.Author.Id == 0)
+                return;
+
+            // return when message is empty
+            if (String.IsNullOrEmpty(message.Content)
+                && message.Attachments.Count == 0)
+                return;
+
+            _SendEmbed(new EmbedBuilder()
             {
-                Author = new EmbedAuthorBuilder() { Name = message.Value.Author.Username, IconUrl = message.Value.Author.GetAvatarUrl() },
-                Description = message.Value.Content,
-                ImageUrl = message.Value.Attachments.Count != 0 ? message.Value.Attachments.First().Url : null,
-                Timestamp = message.Value.Timestamp,
-                Footer = new EmbedFooterBuilder() { Text = $"deleted * {channel.Name} * {message.Id.ToString()}" }
-            };
+                Author = new EmbedAuthorBuilder() { Name = message.Author.Username, IconUrl = message.Author.GetAvatarUrl() },
+                Description = message.Content,
+                ImageUrl = message.Attachments.Count != 0 ? message.Attachments.First().ProxyUrl : null,
+                Timestamp = message.Timestamp,
+                Footer = new EmbedFooterBuilder() { Text = $"deleted • #{channel.Name}" }
+            }, _AuditLogChannel);
 
-            channel1.SendMessageAsync(embed: eBuilder.Build());
         }
 
         private async Task _OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
@@ -107,7 +208,7 @@ namespace OrangeBot
                 return;
 
             // return when it's not in a sane channel!
-            if (channel.Id == _PinMessageChannel)
+            if (channel.Id == _PinMessageChannelId)
                 return;
 
             // make sure the message has been cached so that we have it
@@ -122,22 +223,22 @@ namespace OrangeBot
             if (emoteCount >= _PinEmoteCount
                 && !_PinnedMessages.Contains(message.Id))
             {
-                _PinMessage(msg, (IMessageChannel)_Client.GetChannel(_PinMessageChannel));
+                _SendEmbed(new EmbedBuilder()
+                {
+                    Author = new EmbedAuthorBuilder() { Name = msg.Author.Username, IconUrl = msg.Author.GetAvatarUrl() },
+                    Description = msg.Content,
+                    ImageUrl = msg.Attachments.Count != 0 ? msg.Attachments.First().ProxyUrl : null,
+                    Timestamp = msg.Timestamp,
+                    Footer = new EmbedFooterBuilder() { Text = message.Id.ToString() }
+                }, _PinMessageChannel);
+
                 _PinnedMessages.Add(message.Id);
             }
         }
 
-        private async Task _PinMessage(IUserMessage message, IMessageChannel channel)
+        // sends Embed to channel
+        private async Task _SendEmbed(EmbedBuilder eBuilder, IMessageChannel channel)
         {
-            EmbedBuilder eBuilder = new EmbedBuilder()
-            {
-                Author = new EmbedAuthorBuilder() { Name = message.Author.Username, IconUrl = message.Author.GetAvatarUrl() },
-                Description = message.Content,
-                ImageUrl = message.Attachments.Count != 0 ? message.Attachments.First().Url : null,
-                Timestamp = message.Timestamp,
-                Footer = new EmbedFooterBuilder() { Text = message.Id.ToString() }
-            };
-
             await channel.SendMessageAsync(embed: eBuilder.Build());
         }
     }
