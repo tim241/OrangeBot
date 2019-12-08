@@ -39,8 +39,8 @@ namespace OrangeBot
             _PinMessageChannelId = 0;
             _AuditLogChannelId = 0;
 
-            // this consumes ~400 MB of RAM
-            _DictionaryLimit = 10000000;
+            // this consumes ~200-300 MB of RAM
+            _DictionaryLimit = 5000000;
 
 
             _Messages = new ConcurrentDictionary<ulong, IMessage>();
