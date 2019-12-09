@@ -270,7 +270,7 @@ namespace OrangeBot
             ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
 
             // return when it's in a Pin channel
-            if (_PinMessageChannels.ContainsKey(currentGuild))
+            if (_PinMessageChannels[currentGuild].Id == channel.Id)
                 return;
 
             // make sure the message has been cached so that we have it
