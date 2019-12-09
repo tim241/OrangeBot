@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using Newtonsoft.Json;
 
 namespace OrangeBot
 {
@@ -16,18 +18,15 @@ namespace OrangeBot
         private object _PinnedMessagesLock { get; set; }
         private int _PinEmoteCount { get; set; }
 
-        private ulong _GuildId { get; set; }
-        private ulong _PinMessageChannelId { get; set; }
-        private ulong _AuditLogChannelId { get; set; }
-
-        private SocketGuild _Guild { get; set; }
-        private IMessageChannel _PinMessageChannel { get; set; }
-        private IMessageChannel _AuditLogChannel { get; set; }
+        private OrangeBotConfiguration _Configuration { get; set; }
+        private ConcurrentDictionary<ulong, SocketGuild> _Guilds { get; set; }
+        private ConcurrentDictionary<ulong, IMessageChannel> _PinMessageChannels { get; set; }
+        private ConcurrentDictionary<ulong, IMessageChannel> _AuditLogChannels { get; set; }
 
         private int _DictionaryLimit { get; set; }
 
         private ConcurrentDictionary<ulong, IMessage> _Messages { get; set; }
-        public OrangeBot()
+        public OrangeBot(string configuration)
         {
             _Client = new DiscordSocketClient();
             _PinEmote = new Emoji("📌");
@@ -35,9 +34,13 @@ namespace OrangeBot
             _PinnedMessagesLock = new object();
             _PinEmoteCount = 4;
 
-            _GuildId = 0;
-            _PinMessageChannelId = 0;
-            _AuditLogChannelId = 0;
+            _Configuration =
+                JsonConvert.DeserializeObject<OrangeBotConfiguration>
+                    (File.ReadAllText(configuration));
+
+            _Guilds = new ConcurrentDictionary<ulong, SocketGuild>();
+            _PinMessageChannels = new ConcurrentDictionary<ulong, IMessageChannel>();
+            _AuditLogChannels = new ConcurrentDictionary<ulong, IMessageChannel>();
 
             // this consumes ~200-300 MB of RAM
             _DictionaryLimit = 5000000;
@@ -50,8 +53,6 @@ namespace OrangeBot
 
         private async Task BotMain()
         {
-            string token = "";
-
             // hook up all events
             _Client.Log += _Log;
             _Client.ReactionAdded += _OnReactionAdded;
@@ -65,7 +66,7 @@ namespace OrangeBot
             _Client.UserJoined += _OnUserJoined;
             _Client.Ready += _OnReady;
 
-            await _Client.LoginAsync(TokenType.Bot, token);
+            await _Client.LoginAsync(TokenType.Bot, _Configuration.Token);
             await _Client.StartAsync();
 
             await Task.Delay(-1);
@@ -74,20 +75,25 @@ namespace OrangeBot
         private async Task _OnReady()
         {
             // init the guild(s) & channel(s)
-            _Guild = _Client.GetGuild(_GuildId);
-            _PinMessageChannel = (IMessageChannel)_Client.GetChannel(_PinMessageChannelId);
-            _AuditLogChannel = (IMessageChannel)_Client.GetChannel(_AuditLogChannelId);
+            foreach (DiscordServer s in _Configuration.Servers)
+            {
+                _Guilds[s.Guild] = _Client.GetGuild(s.Guild);
 
-            // fill _PunnedMessages List
-            IEnumerable<IMessage> messages =
-                await _PinMessageChannel.GetMessagesAsync().FlattenAsync();
+                _PinMessageChannels[s.Guild] =
+                    (IMessageChannel)_Client.GetChannel(s.PinChannel);
 
-            messages.ToList().ForEach(m =>
-                m.Embeds.ToList().ForEach(e =>
-                    {
-                        if (ulong.TryParse(e.Footer.Value.Text, out ulong mId))
-                            _PinnedMessages.Add(mId);
-                    }
+                _AuditLogChannels[s.Guild] =
+                    (IMessageChannel)_Client.GetChannel(s.AuditLogChannel);
+            }
+
+            _PinMessageChannels.ToList().ForEach(async c =>
+                (await c.Value.GetMessagesAsync().FlattenAsync()).ToList().ForEach(m =>
+                    m.Embeds.ToList().ForEach(e =>
+                        {
+                            if (ulong.TryParse(e.Footer.Value.Text, out ulong mId))
+                                _PinnedMessages.Add(mId);
+                        }
+                    )
                 )
             );
 
@@ -108,18 +114,21 @@ namespace OrangeBot
             if (clear)
                 _Messages.Clear();
 
-            foreach (IMessageChannel channel in _Guild.TextChannels)
+            foreach (SocketGuild g in _Guilds.Values)
             {
-                try
+                foreach (IMessageChannel channel in g.TextChannels)
                 {
-                    IEnumerable<IMessage> messages =
-                        await channel.GetMessagesAsync(1000).FlattenAsync();
+                    try
+                    {
+                        IEnumerable<IMessage> messages =
+                            await channel.GetMessagesAsync(1000).FlattenAsync();
 
-                    messages.ToList().ForEach(m => _Messages[m.Id] = m);
-                }
-                catch (Exception)
-                {
-                    // ignore, go to next channel
+                        messages.ToList().ForEach(m => _Messages[m.Id] = m);
+                    }
+                    catch (Exception)
+                    {
+                        // ignore, go to next channel
+                    }
                 }
             }
         }
@@ -128,11 +137,11 @@ namespace OrangeBot
         {
             await _SendEmbed(new EmbedBuilder()
             {
-                Author = new EmbedAuthorBuilder() { Name = user.Username, IconUrl = user.GetAvatarUrl() },
+                Author = new EmbedAuthorBuilder() { Name = _GetUserName(user), IconUrl = user.GetAvatarUrl() },
                 Description = "User joined",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
-            }, _AuditLogChannel);
+            }, _AuditLogChannels[user.Guild.Id]);
         }
 
         private async Task _OnUserLeft(SocketGuildUser user)
@@ -143,7 +152,7 @@ namespace OrangeBot
                 Description = "User left",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
-            }, _AuditLogChannel);
+            }, _AuditLogChannels[user.Guild.Id]);
         }
 
         private async Task _OnUserBanned(SocketUser user, SocketGuild guild)
@@ -154,7 +163,7 @@ namespace OrangeBot
                 Description = "User banned",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
-            }, _AuditLogChannel);
+            }, _AuditLogChannels[guild.Id]);
         }
 
         private async Task _OnUserUnbanned(SocketUser user, SocketGuild guild)
@@ -165,7 +174,7 @@ namespace OrangeBot
                 Description = "User unbanned",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
-            }, _AuditLogChannel);
+            }, _AuditLogChannels[guild.Id]);
         }
 
         private async Task _OnBulkMessagesDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> arg1, ISocketMessageChannel arg2)
@@ -206,8 +215,10 @@ namespace OrangeBot
 
             IMessage message = _Messages[message1.Id];
 
+            ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
+
             // return when invalid Guild
-            if (((SocketGuildChannel)channel).Guild.Id != _Guild.Id)
+            if (!_Guilds.ContainsKey(currentGuild))
                 return;
 
             // return when invalid Author
@@ -246,7 +257,8 @@ namespace OrangeBot
                 ImageUrl = message.Attachments.Count != 0 ? message.Attachments.First().ProxyUrl : null,
                 Timestamp = message.Timestamp,
                 Footer = new EmbedFooterBuilder() { Text = $"deleted • #{channel.Name}" }
-            }, _AuditLogChannel);
+            }, _AuditLogChannels[currentGuild]);
+
         }
 
         private async Task _OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
@@ -255,8 +267,10 @@ namespace OrangeBot
             if (reaction.Emote.Name != _PinEmote.Name)
                 return;
 
-            // return when it's not in a sane channel!
-            if (channel.Id == _PinMessageChannelId)
+            ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
+
+            // return when it's in a Pin channel
+            if (_PinMessageChannels.ContainsKey(currentGuild))
                 return;
 
             // make sure the message has been cached so that we have it
@@ -284,7 +298,7 @@ namespace OrangeBot
                 ImageUrl = msg.Attachments.Count != 0 ? msg.Attachments.First().ProxyUrl : null,
                 Timestamp = msg.Timestamp,
                 Footer = new EmbedFooterBuilder() { Text = $"#{msg.Channel.Name} • {message.Id}" }
-            }, _PinMessageChannel);
+            }, _PinMessageChannels[currentGuild]);
 
             lock (_PinnedMessagesLock)
             {

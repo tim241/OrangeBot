@@ -3,6 +3,8 @@ WORKDIR /app
 
 # Copy everything and build
 COPY . ./
+COPY ./config-server.json ./config.json
+
 RUN dotnet publish -c Release -o out
 
 # Build runtime image

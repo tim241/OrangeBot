@@ -4,6 +4,6 @@ namespace OrangeBot
 {
     class Program
     {
-        static void Main(string[] args) => new OrangeBot();
+        static void Main(string[] args) => new OrangeBot("config.json");
     }
 }
