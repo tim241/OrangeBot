@@ -90,8 +90,13 @@ namespace OrangeBot
                 (await c.Value.GetMessagesAsync().FlattenAsync()).ToList().ForEach(m =>
                     m.Embeds.ToList().ForEach(e =>
                         {
-                            if (ulong.TryParse(e.Footer.Value.Text, out ulong mId))
-                                _PinnedMessages.Add(mId);
+                            string text = e.Footer.Value.Text;
+                            string splitText = " • ";
+                            if (text.Contains(splitText))
+                            {
+                                if (ulong.TryParse(text.Split(splitText)[1], out ulong mId))
+                                    _PinnedMessages.Add(mId);
+                            }
                         }
                     )
                 )
