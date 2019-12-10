@@ -17,6 +17,7 @@ namespace OrangeBot
         private List<ulong> _PinnedMessages { get; set; }
         private object _PinnedMessagesLock { get; set; }
         private int _PinEmoteCount { get; set; }
+        private int _PinnedListLimit { get; set; }
 
         private OrangeBotConfiguration _Configuration { get; set; }
         private ConcurrentDictionary<ulong, SocketGuild> _Guilds { get; set; }
@@ -33,6 +34,7 @@ namespace OrangeBot
             _PinnedMessages = new List<ulong>();
             _PinnedMessagesLock = new object();
             _PinEmoteCount = 3;
+            _PinnedListLimit = 1000;
 
             _Configuration =
                 JsonConvert.DeserializeObject<OrangeBotConfiguration>
@@ -42,8 +44,8 @@ namespace OrangeBot
             _PinMessageChannels = new ConcurrentDictionary<ulong, IMessageChannel>();
             _AuditLogChannels = new ConcurrentDictionary<ulong, IMessageChannel>();
 
-            // this consumes ~200-300 MB of RAM
-            _DictionaryLimit = 5000000;
+            // _OnReady will init this value correctly
+            _DictionaryLimit = 0;
 
 
             _Messages = new ConcurrentDictionary<ulong, IMessage>();
@@ -87,7 +89,7 @@ namespace OrangeBot
             }
 
             _PinMessageChannels.ToList().ForEach(async c =>
-                (await c.Value.GetMessagesAsync(1000).FlattenAsync()).ToList().ForEach(m =>
+                (await c.Value.GetMessagesAsync(_PinnedListLimit).FlattenAsync()).ToList().ForEach(m =>
                     m.Embeds.ToList().ForEach(e =>
                         {
                             string text = e.Footer.Value.Text;
@@ -102,7 +104,14 @@ namespace OrangeBot
                 )
             );
 
-            await _QueryMessages(false);
+            // init _DictionaryLimit
+            // 1000 messages per channel
+            foreach (SocketGuild g in _Guilds.Values)
+            {
+                _DictionaryLimit += (g.TextChannels.Count * 1000);
+            }
+
+            await _QueryMessages();
         }
 
         private Task _Log(LogMessage message)
@@ -114,11 +123,8 @@ namespace OrangeBot
         }
 
         // fills _Messages dictionary
-        private async Task _QueryMessages(bool clear)
+        private async Task _QueryMessages()
         {
-            if (clear)
-                _Messages.Clear();
-
             foreach (SocketGuild g in _Guilds.Values)
             {
                 foreach (IMessageChannel channel in g.TextChannels)
@@ -199,18 +205,22 @@ namespace OrangeBot
             Task.Run(() =>
             {
                 _Messages[sMessage.Id] = sMessage;
+                _StripDictionary(_Messages);
+
             });
 
             return Task.CompletedTask;
         }
 
-        private async Task _OnMessageReceived(SocketMessage message)
+        private Task _OnMessageReceived(SocketMessage message)
         {
-            // let's strip the Dictionary once we reach the limit
-            if (_Messages.Count >= _DictionaryLimit)
-                await _QueryMessages(true);
-            else
+            Task.Run(() =>
+            {
                 _Messages[message.Id] = message;
+                _StripDictionary(_Messages);
+            });
+
+            return Task.CompletedTask;
         }
 
         private async Task _OnMessageDeleted(Cacheable<IMessage, ulong> message1, ISocketMessageChannel channel)
@@ -264,6 +274,8 @@ namespace OrangeBot
                 Footer = new EmbedFooterBuilder() { Text = $"deleted • #{channel.Name}" }
             }, _AuditLogChannels[currentGuild]);
 
+            // clear message from memory
+            _Messages.Remove(message.Id, out _);
         }
 
         private async Task _OnReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
@@ -307,6 +319,30 @@ namespace OrangeBot
 
             lock (_PinnedMessagesLock)
             {
+                //Console.WriteLine(_PinnedListLimit);
+                // strip _PinnedMessages once the limit has been reached
+                /* TODO
+                while (_PinnedMessages.Count >= _PinnedListLimit)
+                {
+                    ulong oldestMsgId = 0;
+                    foreach (ulong mId in _PinnedMessages)
+                    {
+                        IMessage m = _Messages[mId];
+
+                        if (oldestMsgId == 0)
+                            oldestMsgId = mId;
+
+                        if (m.Timestamp < _Messages[oldestMsgId].Timestamp)
+                            oldestMsgId = msg.Id;
+                    }
+
+                    Console.WriteLine(oldestMsgId);
+                    Console.WriteLine(_Messages[oldestMsgId].Timestamp);
+
+                    if (!_PinnedMessages.Remove(oldestMsgId))
+                        Console.WriteLine("remove failed?");
+                }
+                */
                 _PinnedMessages.Add(message.Id);
             }
         }
@@ -318,5 +354,31 @@ namespace OrangeBot
         }
 
         private string _GetUserName(IUser user) => $"{user.Username}#{user.Discriminator}";
+
+        // strips ConCurrentDictionary when required
+        private void _StripDictionary(ConcurrentDictionary<ulong, IMessage> dictionary)
+        {
+            while (dictionary.Count >= _DictionaryLimit)
+            {
+                ulong oldestMsgId = 0;
+                foreach (KeyValuePair<ulong, IMessage> msg in dictionary)
+                {
+                    if (oldestMsgId == 0)
+                        oldestMsgId = msg.Value.Id;
+
+                    if (msg.Value.Timestamp < _Messages[oldestMsgId].Timestamp)
+                        oldestMsgId = msg.Value.Id;
+                }
+
+                // if this happens
+                // print to stdout and return
+                if (!_Messages.Remove(oldestMsgId, out _))
+                {
+                    Console.WriteLine("!!!ERROR!!! MEMORY LEAK DETECTED");
+                    Console.WriteLine("!!!ERROR!!! Failed to remove message from dictionary");
+                    return;
+                }
+            }
+        }
     }
 }
