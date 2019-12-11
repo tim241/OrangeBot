@@ -319,30 +319,27 @@ namespace OrangeBot
 
             lock (_PinnedMessagesLock)
             {
-                //Console.WriteLine(_PinnedListLimit);
                 // strip _PinnedMessages once the limit has been reached
-                /* TODO
                 while (_PinnedMessages.Count >= _PinnedListLimit)
                 {
                     ulong oldestMsgId = 0;
                     foreach (ulong mId in _PinnedMessages)
                     {
-                        IMessage m = _Messages[mId];
-
                         if (oldestMsgId == 0)
                             oldestMsgId = mId;
 
-                        if (m.Timestamp < _Messages[oldestMsgId].Timestamp)
-                            oldestMsgId = msg.Id;
+                        if (_Messages[mId].Timestamp < _Messages[oldestMsgId].Timestamp)
+                            oldestMsgId = mId;
                     }
 
-                    Console.WriteLine(oldestMsgId);
-                    Console.WriteLine(_Messages[oldestMsgId].Timestamp);
-
                     if (!_PinnedMessages.Remove(oldestMsgId))
-                        Console.WriteLine("remove failed?");
+                    {
+                        Console.WriteLine("!!!ERROR!!! MEMORY LEAK DETECTED");
+                        Console.WriteLine("!!!ERROR!!! Failed to remove message from list");
+                        return;
+                    }
                 }
-                */
+
                 _PinnedMessages.Add(message.Id);
             }
         }
