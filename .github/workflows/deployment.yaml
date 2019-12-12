@@ -13,6 +13,11 @@ jobs:
     steps:
     - name: Checkout master
       uses: actions/checkout@master
+
+    - name: Deploy OrangeBot config file
+      env:
+        DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+      run: echo "${DEPLOY_CONFIG}" > Deployment/config.json
       
     - name: Build the Container image
       run: docker build -t tim241/orangebot:$(echo $GITHUB_SHA | head -c7) .
