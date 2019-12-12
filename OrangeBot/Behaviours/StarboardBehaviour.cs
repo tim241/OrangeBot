@@ -113,6 +113,8 @@ namespace OrangeBot.Behaviours
 
                 _StarBoardMessageChannel[server.Guild] =
                         (IMessageChannel)_Client.GetChannel(server.PinChannel);
+
+                _StarredMessages[server.Guild] = new List<ulong>();
             }
 
             // import existing starred messages
