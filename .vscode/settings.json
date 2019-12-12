@@ -1,0 +1,7 @@
+{
+    // hide bin & obj directories
+    "files.exclude": {
+        "OrangeBot/bin/": true,
+        "OrangeBot/obj/": true
+    }
+}
