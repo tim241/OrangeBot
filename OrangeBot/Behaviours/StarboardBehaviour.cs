@@ -108,8 +108,8 @@ namespace OrangeBot.Behaviours
             // init _PinEmote
             foreach (DiscordServer server in _Configuration.Servers)
             {
-                _StarEmote[server.Guild] = new Emoji(server.PinEmote);
-                _StarEmoteAmount[server.Guild] = server.PinEmoteCount;
+                _StarEmote[server.Guild] = new Emoji(server.StarEmote);
+                _StarEmoteAmount[server.Guild] = server.StarEmoteCount;
 
                 _StarBoardMessageChannel[server.Guild] =
                         (IMessageChannel)_Client.GetChannel(server.PinChannel);

@@ -20,7 +20,7 @@ namespace OrangeBot.Configuration
         public ulong Guild { get; set; }
         public ulong PinChannel { get; set; }
         public ulong AuditLogChannel { get; set; }
-        public string PinEmote { get; set; }
-        public int PinEmoteCount { get; set; }
+        public string StarEmote { get; set; }
+        public int StarEmoteCount { get; set; }
     }
 }
