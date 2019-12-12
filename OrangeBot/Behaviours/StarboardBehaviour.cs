@@ -17,9 +17,9 @@ namespace OrangeBot.Behaviours
         private ConcurrentDictionary<ulong, Emoji> _StarEmote { get; set; }
         private ConcurrentDictionary<ulong, int> _StarEmoteAmount { get; set; }
         private ConcurrentDictionary<ulong, IMessageChannel> _StarBoardMessageChannel { get; set; }
-        private List<ulong> _StarredMessages { get; set; }
+        private ConcurrentDictionary<ulong, List<ulong>> _StarredMessages { get; set; }
         private object _StarredMessagesLock { get; set; }
-        private int _StarredMessagesLimit { get; set; }
+        private int _StarredMessagesLimitPerGuild { get; set; }
         public StarboardBehaviour(DiscordSocketClient client, BotConfiguration config)
         {
             this._Client = client;
@@ -28,9 +28,9 @@ namespace OrangeBot.Behaviours
             this._StarEmote = new ConcurrentDictionary<ulong, Emoji>();
             this._StarEmoteAmount = new ConcurrentDictionary<ulong, int>();
             this._StarBoardMessageChannel = new ConcurrentDictionary<ulong, IMessageChannel>();
-            this._StarredMessages = new List<ulong>();
+            this._StarredMessages = new ConcurrentDictionary<ulong, List<ulong>>();
             this._StarredMessagesLock = new object();
-            this._StarredMessagesLimit = 1000;
+            this._StarredMessagesLimitPerGuild = 1000;
         }
 
         public Task OnBulkMessagesDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> messages, ISocketMessageChannel channel) => Task.CompletedTask;
@@ -70,7 +70,7 @@ namespace OrangeBot.Behaviours
                 // or if it's already pinned,
                 // return
                 if (emoteCount < _StarEmoteAmount[currentGuild]
-                        || _StarredMessages.Contains(msg.Id))
+                        || _StarredMessages[currentGuild].Contains(msg.Id))
                 {
                     return;
                 }
@@ -93,12 +93,12 @@ namespace OrangeBot.Behaviours
             lock (_StarredMessagesLock)
             {
                 // strip _PinnedMessages once the limit has been reached
-                while (_StarredMessages.Count > _StarredMessagesLimit)
+                while (_StarredMessages[currentGuild].Count > _StarredMessagesLimitPerGuild)
                 {
-                    _StarredMessages.RemoveAt(0);
+                    _StarredMessages[currentGuild].RemoveAt(0);
                 }
 
-                _StarredMessages.Add(msg.Id);
+                _StarredMessages[currentGuild].Add(msg.Id);
             }
 
         }
@@ -117,16 +117,17 @@ namespace OrangeBot.Behaviours
 
             // import existing starred messages
             _StarBoardMessageChannel.ToList().ForEach(c =>
-                (c.Value.GetMessagesAsync(_StarredMessagesLimit).FlattenAsync()).Result.ToList().ForEach(m =>
+                (c.Value.GetMessagesAsync(_StarredMessagesLimitPerGuild).FlattenAsync()).Result.ToList().ForEach(m =>
                     m.Embeds.ToList().ForEach(e =>
                         {
+                            ulong guildId = ((SocketGuildChannel)c.Value).Guild.Id;
                             string text = e.Footer.Value.Text;
                             string seperator = " • ";
                             if (text.Contains(seperator) &&
                                 text.Split(seperator).Length > 0)
                             {
                                 if (ulong.TryParse(text.Split(seperator)[1], out ulong mId))
-                                    _StarredMessages.Add(mId);
+                                    _StarredMessages[guildId].Add(mId);
                             }
                         }
                     )
@@ -134,8 +135,8 @@ namespace OrangeBot.Behaviours
             );
 
             // we added the starred messages from new to old,
-            // so reverse the List
-            _StarredMessages.Reverse();
+            // so reverse all the Lists
+            _StarredMessages.ToList().ForEach(mList => mList.Value.Reverse());
 
             return Task.CompletedTask;
         }
