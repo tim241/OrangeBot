@@ -245,30 +245,10 @@ namespace OrangeBot
                 && message.Attachments.Count == 0)
                 return;
 
-            // HACK!!
-            string content = message.Content;
-            foreach (Attachment a in message.Attachments)
-            {
-                string extension = a.Filename.Split('.').Last().ToLower();
-                switch (extension)
-                {
-                    case "gif":
-                    case "jpg":
-                    case "jpeg":
-                    case "png":
-                    case "webp":
-                    case "tiff":
-                    case "bmp":
-                        continue;
-                }
-
-                content += Environment.NewLine + a.ProxyUrl;
-            }
-
             await _SendEmbed(new EmbedBuilder()
             {
                 Author = new EmbedAuthorBuilder() { Name = _GetUserName(message.Author), IconUrl = message.Author.GetAvatarUrl() },
-                Description = content,
+                Description = _GetMessageContent(message),
                 ImageUrl = message.Attachments.Count != 0 ? message.Attachments.First().ProxyUrl : null,
                 Timestamp = message.Timestamp,
                 Footer = new EmbedFooterBuilder() { Text = $"deleted • #{channel.Name}" }
@@ -311,7 +291,7 @@ namespace OrangeBot
             await _SendEmbed(new EmbedBuilder()
             {
                 Author = new EmbedAuthorBuilder() { Name = _GetUserName(msg.Author), IconUrl = msg.Author.GetAvatarUrl(), Url = msg.GetJumpUrl() },
-                Description = msg.Content,
+                Description = _GetMessageContent(msg),
                 ImageUrl = msg.Attachments.Count != 0 ? msg.Attachments.First().ProxyUrl : null,
                 Timestamp = msg.Timestamp,
                 Footer = new EmbedFooterBuilder() { Text = $"#{msg.Channel.Name} • {message.Id}" }
@@ -351,6 +331,31 @@ namespace OrangeBot
         }
 
         private string _GetUserName(IUser user) => $"{user.Username}#{user.Discriminator}";
+
+        private string _GetMessageContent(IMessage message)
+        {
+            // HACK!!
+            string content = message.Content;
+            foreach (Attachment a in message.Attachments)
+            {
+                string extension = a.Filename.Split('.').Last().ToLower();
+                switch (extension)
+                {
+                    case "gif":
+                    case "jpg":
+                    case "jpeg":
+                    case "png":
+                    case "webp":
+                    case "tiff":
+                    case "bmp":
+                        continue;
+                }
+
+                content += Environment.NewLine + a.ProxyUrl;
+            }
+
+            return content;
+        }
 
         // strips ConCurrentDictionary when required
         private void _StripDictionary(ConcurrentDictionary<ulong, IMessage> dictionary)
