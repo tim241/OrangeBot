@@ -18,7 +18,6 @@ namespace OrangeBot.Behaviours
         private ConcurrentDictionary<ulong, int> _StarEmoteAmount { get; set; }
         private ConcurrentDictionary<ulong, IMessageChannel> _StarBoardMessageChannel { get; set; }
         private ConcurrentDictionary<ulong, List<ulong>> _StarredMessages { get; set; }
-        private object _StarredMessagesLock { get; set; }
         private int _StarredMessagesLimitPerGuild { get; set; }
         public StarboardBehaviour(DiscordSocketClient client, BotConfiguration config)
         {
@@ -29,7 +28,6 @@ namespace OrangeBot.Behaviours
             this._StarEmoteAmount = new ConcurrentDictionary<ulong, int>();
             this._StarBoardMessageChannel = new ConcurrentDictionary<ulong, IMessageChannel>();
             this._StarredMessages = new ConcurrentDictionary<ulong, List<ulong>>();
-            this._StarredMessagesLock = new object();
             this._StarredMessagesLimitPerGuild = 1000;
         }
 
@@ -64,16 +62,14 @@ namespace OrangeBot.Behaviours
             int emoteCount = (await msg.GetReactionUsersAsync(_StarEmote[currentGuild],
                                 _StarEmoteAmount[currentGuild]).FlattenAsync()).Count();
 
-            lock (_StarredMessagesLock)
+
+            // once we have less emotes than required
+            // or if it's already pinned,
+            // return
+            if (emoteCount < _StarEmoteAmount[currentGuild]
+                    || _StarredMessages[currentGuild].Contains(msg.Id))
             {
-                // once we have less emotes than required
-                // or if it's already pinned,
-                // return
-                if (emoteCount < _StarEmoteAmount[currentGuild]
-                        || _StarredMessages[currentGuild].Contains(msg.Id))
-                {
-                    return;
-                }
+                return;
             }
 
             await DiscordHelper.SendEmbed(new EmbedBuilder()
@@ -90,17 +86,14 @@ namespace OrangeBot.Behaviours
                 Footer = new EmbedFooterBuilder() { Text = $"#{msg.Channel.Name} • {msg.Id}" }
             }, _StarBoardMessageChannel[currentGuild]);
 
-            lock (_StarredMessagesLock)
+            // store the message id in a List
+            _StarredMessages[currentGuild].Add(msg.Id);
+
+            // strip _PinnedMessages once the limit has been reached
+            while (_StarredMessages[currentGuild].Count > _StarredMessagesLimitPerGuild)
             {
-                // strip _PinnedMessages once the limit has been reached
-                while (_StarredMessages[currentGuild].Count > _StarredMessagesLimitPerGuild)
-                {
-                    _StarredMessages[currentGuild].RemoveAt(0);
-                }
-
-                _StarredMessages[currentGuild].Add(msg.Id);
+                _StarredMessages[currentGuild].RemoveAt(0);
             }
-
         }
 
         public Task OnReady()
