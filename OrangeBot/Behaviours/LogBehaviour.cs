@@ -101,7 +101,7 @@ namespace OrangeBot.Behaviours
         {
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
-                Description = $"{messages.Count} messages deleted in {channel.Name}",
+                Description = $"{messages.Count} messages deleted in #{channel.Name}",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {channel.Id}" }
             }, _AuditLogChannel[((SocketGuildChannel)channel).Guild.Id]);
@@ -111,7 +111,11 @@ namespace OrangeBot.Behaviours
         {
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
-                Author = new EmbedAuthorBuilder() { Name = DiscordHelper.GetUserName(user), IconUrl = user.GetAvatarUrl() },
+                Author = new EmbedAuthorBuilder()
+                {
+                    Name = DiscordHelper.GetUserName(user),
+                    IconUrl = user.GetAvatarUrl()
+                },
                 Description = "User joined",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
@@ -122,7 +126,11 @@ namespace OrangeBot.Behaviours
         {
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
-                Author = new EmbedAuthorBuilder() { Name = DiscordHelper.GetUserName(user), IconUrl = user.GetAvatarUrl() },
+                Author = new EmbedAuthorBuilder()
+                {
+                    Name = DiscordHelper.GetUserName(user),
+                    IconUrl = user.GetAvatarUrl()
+                },
                 Description = "User left",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
@@ -133,7 +141,11 @@ namespace OrangeBot.Behaviours
         {
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
-                Author = new EmbedAuthorBuilder() { Name = DiscordHelper.GetUserName(user), IconUrl = user.GetAvatarUrl() },
+                Author = new EmbedAuthorBuilder()
+                {
+                    Name = DiscordHelper.GetUserName(user),
+                    IconUrl = user.GetAvatarUrl()
+                },
                 Description = "User banned",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
@@ -144,7 +156,11 @@ namespace OrangeBot.Behaviours
         {
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
-                Author = new EmbedAuthorBuilder() { Name = DiscordHelper.GetUserName(user), IconUrl = user.GetAvatarUrl() },
+                Author = new EmbedAuthorBuilder()
+                {
+                    Name = DiscordHelper.GetUserName(user),
+                    IconUrl = user.GetAvatarUrl()
+                },
                 Description = "User unbanned",
                 Timestamp = DateTime.Now,
                 Footer = new EmbedFooterBuilder() { Text = $"Event • {user.Id}" }
