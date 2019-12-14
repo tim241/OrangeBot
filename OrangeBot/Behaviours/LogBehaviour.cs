@@ -44,19 +44,21 @@ namespace OrangeBot.Behaviours
             if (!oldMessage.HasValue)
                 return;
 
-            ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
-
-            // HACK:
-            // OnMessageUpdated seems to be called twice?
-            // once with the correct message
-            // the second time it just shows the message we've sent
-            // which wasn't edited,
-            // this seems to workaround it for now
-            if (oldMessage.Value.Content == ""
-                && newMessage.Content == "")
-            {
+            // Amazing API design Part 1:
+            // when there's an embed,
+            // the Discord API will send the metadata
+            // and apply it with a MessageUpdated event,
+            // without modifying the Timestamp
+            //
+            // https://github.com/Rapptz/discord.py/issues/273#issuecomment-239647478
+            //
+            // so to combat this 'intended behaviour'
+            // we just return once there are *any* embeds in the message
+            if (oldMessage.Value.Embeds.Count > 0 ||
+                newMessage.Embeds.Count > 0)
                 return;
-            }
+
+            ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
 
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
