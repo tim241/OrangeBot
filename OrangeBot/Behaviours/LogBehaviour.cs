@@ -44,12 +44,19 @@ namespace OrangeBot.Behaviours
             if (!oldMessage.HasValue)
                 return;
 
-            // return when message is empty
-            if (String.IsNullOrEmpty(newMessage.Content)
-                && newMessage.Attachments.Count == 0)
-                return;
-
             ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
+
+            // HACK:
+            // OnMessageUpdated seems to be called twice?
+            // once with the correct message
+            // the second time it just shows the message we've sent
+            // which wasn't edited,
+            // this seems to workaround it for now
+            if (oldMessage.Value.Content == ""
+                && newMessage.Content == "")
+            {
+                return;
+            }
 
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
@@ -62,12 +69,12 @@ namespace OrangeBot.Behaviours
                     new EmbedFieldBuilder()
                     {
                         Name = "Old Message",
-                        Value = DiscordHelper.GetMessageContent(oldMessage.Value)
+                        Value = oldMessage.Value.Content
                     },
                     new EmbedFieldBuilder()
                     {
                         Name = "New Message",
-                        Value = DiscordHelper.GetMessageContent(newMessage)
+                        Value = newMessage.Content
                     }
                 },
                 Timestamp = newMessage.Timestamp,
@@ -86,10 +93,6 @@ namespace OrangeBot.Behaviours
             // return when message is empty
             if (String.IsNullOrEmpty(message.Content)
                 && message.Attachments.Count == 0)
-                return;
-
-            // return when the author is us
-            if (message.Author.Id == 0)
                 return;
 
             ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
