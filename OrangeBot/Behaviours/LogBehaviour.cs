@@ -60,6 +60,7 @@ namespace OrangeBot.Behaviours
 
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
+                Url = newMessage.GetJumpUrl(),
                 Author = new EmbedAuthorBuilder()
                 {
                     Name = DiscordHelper.GetUserName(newMessage.Author),
@@ -77,7 +78,7 @@ namespace OrangeBot.Behaviours
                         Value = newMessage.Content
                     }
                 },
-                Timestamp = newMessage.Timestamp,
+                Timestamp = newMessage.EditedTimestamp,
                 Footer = new EmbedFooterBuilder() { Text = $"edited • #{channel.Name}" }
             }, _AuditLogChannel[currentGuild]);
         }
