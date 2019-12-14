@@ -60,6 +60,10 @@ namespace OrangeBot.Behaviours
 
             ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
 
+            // return when the message isn't in the configured guilds
+            if (!_AuditLogChannel.ContainsKey(currentGuild))
+                return;
+
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
                 Url = newMessage.GetJumpUrl(),
@@ -99,6 +103,10 @@ namespace OrangeBot.Behaviours
                 return;
 
             ulong currentGuild = ((SocketGuildChannel)channel).Guild.Id;
+
+            // return when the message isn't in the configured guilds
+            if (!_AuditLogChannel.ContainsKey(currentGuild))
+                return;
 
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
