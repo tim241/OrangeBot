@@ -75,7 +75,7 @@ namespace OrangeBot.Behaviours
                     }
                 },
                 Timestamp = newMessage.EditedTimestamp,
-                Footer = new EmbedFooterBuilder() { Text = $"edited • #{channel.Name}" }
+                Footer = new EmbedFooterBuilder() { Text = $"Edited • #{channel.Name}" }
             }, _AuditLogChannel[currentGuild]);
         }
 
@@ -108,7 +108,7 @@ namespace OrangeBot.Behaviours
                 Description = DiscordHelper.GetMessageContent(message),
                 ImageUrl = message.Attachments.Count != 0 ? message.Attachments.First().ProxyUrl : null,
                 Timestamp = message.Timestamp,
-                Footer = new EmbedFooterBuilder() { Text = $"deleted • #{channel.Name}" }
+                Footer = new EmbedFooterBuilder() { Text = $"Deleted • #{channel.Name}" }
             }, _AuditLogChannel[currentGuild]);
         }
 
