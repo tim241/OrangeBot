@@ -18,6 +18,7 @@ namespace OrangeBot.Behaviours
         private ConcurrentDictionary<ulong, int> _StarEmoteAmount { get; set; }
         private ConcurrentDictionary<ulong, IMessageChannel> _StarBoardMessageChannel { get; set; }
         private ConcurrentDictionary<ulong, List<ulong>> _StarredMessages { get; set; }
+        private object _StarredMessagesLock { get; set; }
         private int _StarredMessagesLimitPerGuild { get; set; }
         public StarboardBehaviour(DiscordSocketClient client, BotConfiguration config)
         {
@@ -28,6 +29,7 @@ namespace OrangeBot.Behaviours
             this._StarEmoteAmount = new ConcurrentDictionary<ulong, int>();
             this._StarBoardMessageChannel = new ConcurrentDictionary<ulong, IMessageChannel>();
             this._StarredMessages = new ConcurrentDictionary<ulong, List<ulong>>();
+            this._StarredMessagesLock = new object();
             this._StarredMessagesLimitPerGuild = 1000;
         }
 
@@ -65,17 +67,28 @@ namespace OrangeBot.Behaviours
             if (msg.Timestamp <= DateTime.Now.AddHours(-24))
                 return;
 
-            int emoteCount = (msg.GetReactionUsersAsync(_StarEmote[currentGuild],
+            lock (_StarredMessagesLock)
+            {
+                int emoteCount = (msg.GetReactionUsersAsync(_StarEmote[currentGuild],
                                 _StarEmoteAmount[currentGuild]).FlattenAsync()).Result.Count();
 
+                // once we have less emotes than required
+                // or if it's already starred,
+                // return
+                if (emoteCount < _StarEmoteAmount[currentGuild]
+                        || _StarredMessages[currentGuild].Contains(msg.Id))
+                {
+                    return;
+                }
 
-            // once we have less emotes than required
-            // or if it's already pinned,
-            // return
-            if (emoteCount < _StarEmoteAmount[currentGuild]
-                    || _StarredMessages[currentGuild].Contains(msg.Id))
-            {
-                return;
+                // store the message id in a List
+                _StarredMessages[currentGuild].Add(msg.Id);
+
+                // strip _PinnedMessages once the limit has been reached
+                while (_StarredMessages[currentGuild].Count > _StarredMessagesLimitPerGuild)
+                {
+                    _StarredMessages[currentGuild].RemoveAt(0);
+                }
             }
 
             await DiscordHelper.SendEmbed(new EmbedBuilder()
@@ -91,15 +104,6 @@ namespace OrangeBot.Behaviours
                 Timestamp = msg.Timestamp,
                 Footer = new EmbedFooterBuilder() { Text = $"#{msg.Channel.Name} • {msg.Id}" }
             }, _StarBoardMessageChannel[currentGuild]);
-
-            // store the message id in a List
-            _StarredMessages[currentGuild].Add(msg.Id);
-
-            // strip _PinnedMessages once the limit has been reached
-            while (_StarredMessages[currentGuild].Count > _StarredMessagesLimitPerGuild)
-            {
-                _StarredMessages[currentGuild].RemoveAt(0);
-            }
         }
 
         public Task OnReady()
