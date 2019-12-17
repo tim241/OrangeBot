@@ -56,11 +56,11 @@ namespace OrangeBot.Behaviours
 
             await DiscordHelper.SendEmbed(new EmbedBuilder()
             {
-                Url = newMessage.GetJumpUrl(),
                 Author = new EmbedAuthorBuilder()
                 {
                     Name = DiscordHelper.GetUserName(newMessage.Author),
-                    IconUrl = newMessage.Author.GetAvatarUrl()
+                    IconUrl = newMessage.Author.GetAvatarUrl(),
+                    Url = newMessage.GetJumpUrl()
                 },
                 Fields = {
                     new EmbedFieldBuilder()
