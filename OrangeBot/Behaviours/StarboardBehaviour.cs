@@ -117,14 +117,18 @@ namespace OrangeBot.Behaviours
                 (c.Value.GetMessagesAsync(_StarredMessagesLimitPerGuild).FlattenAsync()).Result.ToList().ForEach(m =>
                     m.Embeds.ToList().ForEach(e =>
                         {
-                            ulong guildId = ((SocketGuildChannel)c.Value).Guild.Id;
-                            string text = e.Footer.Value.Text;
-                            string seperator = " • ";
-                            if (text.Contains(seperator) &&
-                                text.Split(seperator).Length > 0)
+                            // make sure c.Value has a value
+                            if (c.Value != null)
                             {
-                                if (ulong.TryParse(text.Split(seperator)[1], out ulong mId))
-                                    _StarredMessages[guildId].Add(mId);
+                                ulong guildId = ((SocketGuildChannel)c.Value).Guild.Id;
+                                string text = e.Footer.Value.Text;
+                                string seperator = " • ";
+                                if (text.Contains(seperator) &&
+                                    text.Split(seperator).Length > 0)
+                                {
+                                    if (ulong.TryParse(text.Split(seperator)[1], out ulong mId))
+                                        _StarredMessages[guildId].Add(mId);
+                                }
                             }
                         }
                     )
