@@ -14,7 +14,7 @@ namespace OrangeBot.Behaviours
     {
         private DiscordSocketClient _Client { get; set; }
         private BotConfiguration _Configuration { get; set; }
-        private ConcurrentDictionary<ulong, dynamic> _StarEmote { get; set; }
+        private ConcurrentDictionary<ulong, IEmote> _StarEmote { get; set; }
         private ConcurrentDictionary<ulong, int> _StarEmoteAmount { get; set; }
         private ConcurrentDictionary<ulong, IMessageChannel> _StarBoardMessageChannel { get; set; }
         private ConcurrentDictionary<ulong, List<ulong>> _StarredMessages { get; set; }
@@ -25,7 +25,7 @@ namespace OrangeBot.Behaviours
             this._Client = client;
             this._Configuration = config;
 
-            this._StarEmote = new ConcurrentDictionary<ulong, dynamic>();
+            this._StarEmote = new ConcurrentDictionary<ulong, IEmote>();
             this._StarEmoteAmount = new ConcurrentDictionary<ulong, int>();
             this._StarBoardMessageChannel = new ConcurrentDictionary<ulong, IMessageChannel>();
             this._StarredMessages = new ConcurrentDictionary<ulong, List<ulong>>();
@@ -41,34 +41,18 @@ namespace OrangeBot.Behaviours
             if (!_StarEmote.ContainsKey(currentGuild))
                 return;
 
-            // whether the '_StarEmote[currentGuild]' 
-            // is of the 'Emote' type 
-            bool isEmoteType = false;
-
             // we support both 'Emote' and 'Emoji',
-            // so check type and
-            // make sure it's the 'Emote'/'Emoji' we need
-            // if not, return
+            // so check the type
             if (_StarEmote[currentGuild].GetType() == typeof(Emote))
             {
-                // make sure reaction 'IEmote' can be cast as 'Emote'
-                Emote reactionEmote = reaction.Emote as Emote;
-
-                // failed to cast, return
-                if (reactionEmote == null)
-                    return;
-
                 // return when it's not the 'Emote' we need
-                if (((Emote)_StarEmote[currentGuild]).Id != reactionEmote.Id)
+                if (!((Emote)_StarEmote[currentGuild]).Equals(reaction.Emote))
                     return;
-
-                // 'Emote' type
-                isEmoteType = true;
             }
             else
             {
                 // return when it's not the 'Emoji' we need
-                if (((Emoji)_StarEmote[currentGuild]).Name != reaction.Emote.Name)
+                if (!((Emoji)_StarEmote[currentGuild]).Equals(reaction.Emote))
                     return;
             }
 
@@ -88,20 +72,8 @@ namespace OrangeBot.Behaviours
 
             lock (_StarredMessagesLock)
             {
-                int emoteCount = 0;
-
-                // cast '_StarEmote[currentGuild]'
-                // to either 'Emote' or 'Emoji'
-                if (isEmoteType)
-                {
-                    emoteCount = (msg.GetReactionUsersAsync((Emote)_StarEmote[currentGuild],
+                int emoteCount = (msg.GetReactionUsersAsync((IEmote)_StarEmote[currentGuild],
                                     _StarEmoteAmount[currentGuild]).FlattenAsync()).Result.Count();
-                }
-                else
-                {
-                    emoteCount = (msg.GetReactionUsersAsync((Emoji)_StarEmote[currentGuild],
-                                    _StarEmoteAmount[currentGuild]).FlattenAsync()).Result.Count();
-                }
 
                 // once we have less emotes than required
                 // or if it's already starred,
@@ -142,6 +114,12 @@ namespace OrangeBot.Behaviours
             // init _PinEmote
             foreach (DiscordServer server in _Configuration.Servers)
             {
+                var starChannel = _Client.GetChannel(server.StarChannel) as IMessageChannel;
+
+                // skip 'server' when we can't find the StarChannel
+                if(starChannel == null)
+                    continue;
+
                 // I want to support custom emotes,
                 // so try to parse 'server.StarEmote' as 'Emote',
                 // if we can't, use 'Emoji'
@@ -151,35 +129,32 @@ namespace OrangeBot.Behaviours
                     _StarEmote[server.Guild] = new Emoji(server.StarEmote);
 
                 _StarEmoteAmount[server.Guild] = server.StarEmoteCount;
-
-                _StarBoardMessageChannel[server.Guild] =
-                        (IMessageChannel)_Client.GetChannel(server.StarChannel);
-
+                _StarBoardMessageChannel[server.Guild] = starChannel;
                 _StarredMessages[server.Guild] = new List<ulong>();
             }
 
             // import existing starred messages
             _StarBoardMessageChannel.ToList().ForEach(c =>
-                (c.Value.GetMessagesAsync(_StarredMessagesLimitPerGuild).FlattenAsync()).Result.ToList().ForEach(m =>
-                    m.Embeds.ToList().ForEach(e =>
+            {
+                // make sure c.Value has a value
+                if (c.Value != null)
+                {
+                    (c.Value.GetMessagesAsync(_StarredMessagesLimitPerGuild).FlattenAsync()).Result.ToList().ForEach(m =>
+                     m.Embeds.ToList().ForEach(e =>
                         {
-                            // make sure c.Value has a value
-                            if (c.Value != null)
+                            ulong guildId = ((SocketGuildChannel)c.Value).Guild.Id;
+                            string text = e.Footer.Value.Text;
+                            string seperator = " • ";
+                            if (text.Contains(seperator) &&
+                                text.Split(seperator).Length > 0)
                             {
-                                ulong guildId = ((SocketGuildChannel)c.Value).Guild.Id;
-                                string text = e.Footer.Value.Text;
-                                string seperator = " • ";
-                                if (text.Contains(seperator) &&
-                                    text.Split(seperator).Length > 0)
-                                {
-                                    if (ulong.TryParse(text.Split(seperator)[1], out ulong mId))
-                                        _StarredMessages[guildId].Add(mId);
-                                }
+                                if (ulong.TryParse(text.Split(seperator)[1], out ulong mId))
+                                    _StarredMessages[guildId].Add(mId);
                             }
                         }
-                    )
-                )
-            );
+                    ));
+                }
+            });
 
             // we added the starred messages from new to old,
             // so reverse all the Lists
