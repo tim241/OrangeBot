@@ -14,7 +14,7 @@ namespace OrangeBot.Behaviours
     {
         private DiscordSocketClient _Client { get; set; }
         private BotConfiguration _Configuration { get; set; }
-        private ConcurrentDictionary<ulong, Emoji> _StarEmote { get; set; }
+        private ConcurrentDictionary<ulong, dynamic> _StarEmote { get; set; }
         private ConcurrentDictionary<ulong, int> _StarEmoteAmount { get; set; }
         private ConcurrentDictionary<ulong, IMessageChannel> _StarBoardMessageChannel { get; set; }
         private ConcurrentDictionary<ulong, List<ulong>> _StarredMessages { get; set; }
@@ -25,7 +25,7 @@ namespace OrangeBot.Behaviours
             this._Client = client;
             this._Configuration = config;
 
-            this._StarEmote = new ConcurrentDictionary<ulong, Emoji>();
+            this._StarEmote = new ConcurrentDictionary<ulong, dynamic>();
             this._StarEmoteAmount = new ConcurrentDictionary<ulong, int>();
             this._StarBoardMessageChannel = new ConcurrentDictionary<ulong, IMessageChannel>();
             this._StarredMessages = new ConcurrentDictionary<ulong, List<ulong>>();
@@ -41,9 +41,36 @@ namespace OrangeBot.Behaviours
             if (!_StarEmote.ContainsKey(currentGuild))
                 return;
 
-            // return when it's not the emote we need
-            if (_StarEmote[currentGuild].Name != reaction.Emote.Name)
-                return;
+            // whether the '_StarEmote[currentGuild]' 
+            // is of the 'Emote' type 
+            bool isEmoteType = false;
+
+            // we support both 'Emote' and 'Emoji',
+            // so check type and
+            // make sure it's the 'Emote'/'Emoji' we need
+            // if not, return
+            if (_StarEmote[currentGuild].GetType() == typeof(Emote))
+            {
+                // make sure reaction 'IEmote' can be cast as 'Emote'
+                Emote reactionEmote = reaction.Emote as Emote;
+
+                // failed to cast, return
+                if (reactionEmote == null)
+                    return;
+
+                // return when it's not the 'Emote' we need
+                if (((Emote)_StarEmote[currentGuild]).Id != reactionEmote.Id)
+                    return;
+
+                // 'Emote' type
+                isEmoteType = true;
+            }
+            else
+            {
+                // return when it's not the 'Emoji' we need
+                if (((Emoji)_StarEmote[currentGuild]).Name != reaction.Emote.Name)
+                    return;
+            }
 
             // return when it's in a StarBoard channel
             if (_StarBoardMessageChannel[currentGuild].Id == channel.Id)
@@ -61,8 +88,20 @@ namespace OrangeBot.Behaviours
 
             lock (_StarredMessagesLock)
             {
-                int emoteCount = (msg.GetReactionUsersAsync(_StarEmote[currentGuild],
-                                _StarEmoteAmount[currentGuild]).FlattenAsync()).Result.Count();
+                int emoteCount = 0;
+
+                // cast '_StarEmote[currentGuild]'
+                // to either 'Emote' or 'Emoji'
+                if (isEmoteType)
+                {
+                    emoteCount = (msg.GetReactionUsersAsync((Emote)_StarEmote[currentGuild],
+                                    _StarEmoteAmount[currentGuild]).FlattenAsync()).Result.Count();
+                }
+                else
+                {
+                    emoteCount = (msg.GetReactionUsersAsync((Emoji)_StarEmote[currentGuild],
+                                    _StarEmoteAmount[currentGuild]).FlattenAsync()).Result.Count();
+                }
 
                 // once we have less emotes than required
                 // or if it's already starred,
@@ -103,7 +142,14 @@ namespace OrangeBot.Behaviours
             // init _PinEmote
             foreach (DiscordServer server in _Configuration.Servers)
             {
-                _StarEmote[server.Guild] = new Emoji(server.StarEmote);
+                // I want to support custom emotes,
+                // so try to parse 'server.StarEmote' as 'Emote',
+                // if we can't, use 'Emoji'
+                if (Emote.TryParse(server.StarEmote, out Emote emote))
+                    _StarEmote[server.Guild] = emote;
+                else
+                    _StarEmote[server.Guild] = new Emoji(server.StarEmote);
+
                 _StarEmoteAmount[server.Guild] = server.StarEmoteCount;
 
                 _StarBoardMessageChannel[server.Guild] =
