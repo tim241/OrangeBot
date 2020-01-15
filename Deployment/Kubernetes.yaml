@@ -9,7 +9,7 @@ type: kubernetes.io/dockerconfigjson
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: orangebot-deployment
+  name: orangebot
   labels:
     app: orangebot
 spec:
