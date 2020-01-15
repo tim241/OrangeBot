@@ -73,9 +73,7 @@ namespace OrangeBot
             // make sure all Exceptions are logged
             AppDomain.CurrentDomain.FirstChanceException += _LogException;
 
-            // login with each token
-            foreach(string token in _Configuration.Tokens)
-                await _Client.LoginAsync(TokenType.Bot, token);
+            await _Client.LoginAsync(TokenType.Bot, _Configuration.Token);
             
             await _Client.StartAsync();
 
