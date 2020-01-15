@@ -9,5 +9,5 @@ RUN dotnet publish OrangeBot/OrangeBot.csproj -c Release -o out
 FROM mcr.microsoft.com/dotnet/core/runtime:3.1
 WORKDIR /app
 COPY --from=build-env /app/out .
-COPY --from=build-env /app/Deployment/config.json ./config.json
-ENTRYPOINT ["./OrangeBot"]
+COPY --from=build-env /app/Deployment/run.sh ./run.sh
+ENTRYPOINT ["./run.sh"]

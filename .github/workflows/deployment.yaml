@@ -15,9 +15,9 @@ jobs:
       uses: actions/checkout@master
 
     - name: Deploy OrangeBot config file
-      env:
-        DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
-      run: echo "${DEPLOY_CONFIG}" > Deployment/config.json
+      run:
+        - sed -i 's|@@POD0_CONFIG@@|'${{ secrets.DEPLOY_CONFIG_0 }}'|g' $GITHUB_WORKSPACE/Deployment/run.sh
+        - sed -i 's|@@POD1_CONFIG@@|'${{ secrets.DEPLOY_CONFIG_1 }}'|g' $GITHUB_WORKSPACE/Deployment/run.sh
       
     - name: Build the Container image
       run: docker build -t tim241/orangebot:$(echo $GITHUB_SHA | head -c7) .
