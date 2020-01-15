@@ -15,6 +15,7 @@ metadata:
 spec:
   replicas: 2
   revisionHistoryLimit: 0
+  serviceName: "dummy"
   selector:
     matchLabels:
       app: orangebot
