@@ -1,12 +1,16 @@
 {
   "Token": "",
+  "TwitterApiKey": "",
+  "TwitterApiSecret": "",
   "Servers": [
     {
       "Guild": 0,
       "StarChannel": 0,
       "AuditLogChannel": 0,
+      "TwitterFeedChannel": 0,
       "StarEmote": "★",
-      "StarEmoteCount": 1
+      "StarEmoteCount": 1,
+      "TwitterUsers": [ "" ]
     }
   ]
 }

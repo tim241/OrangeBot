@@ -18,6 +18,8 @@ namespace OrangeBot.Configuration
     public class BotConfiguration
     {
         public string Token { get; set; }
+        public string TwitterApiKey { get; set; }
+        public string TwitterApiSecret { get; set; }
         public DiscordServer[] Servers { get; set; }
     }
 }

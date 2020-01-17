@@ -51,6 +51,7 @@ namespace OrangeBot
 
             _BotBehaviours.Add(new Behaviours.LogBehaviour(_Client, _Configuration));
             _BotBehaviours.Add(new Behaviours.StarboardBehaviour(_Client, _Configuration));
+            _BotBehaviours.Add(new Behaviours.TwitterFeedBehaviour(_Client, _Configuration));
 
             BotMain().GetAwaiter().GetResult();
         }

@@ -20,7 +20,10 @@ namespace OrangeBot.Configuration
         public ulong Guild { get; set; }
         public ulong StarChannel { get; set; }
         public ulong AuditLogChannel { get; set; }
+        public ulong TwitterFeedChannel { get; set; }
         public string StarEmote { get; set; }
         public int StarEmoteCount { get; set; }
+        public string[] TwitterUsers { get; set; }
+
     }
 }
