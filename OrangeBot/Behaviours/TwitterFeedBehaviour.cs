@@ -35,7 +35,7 @@ namespace OrangeBot.Behaviours
             this._FeedChannel = new ConcurrentDictionary<ulong, IMessageChannel>();
 
             // max stored messages per guild
-            this._TweetLimitPerGuild = 10;
+            this._TweetLimitPerGuild = 1000;
         }
 
         public Task OnReady()
