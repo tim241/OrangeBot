@@ -25,7 +25,7 @@ namespace OrangeBot
             string config = Environment.GetEnvironmentVariable("ORANGEBOT_CONFIG");
 
             if(String.IsNullOrEmpty(config))
-                config = File.ReadAllText("config.json");
+                config = File.ReadAllText(args[0] ?? "config.json" );
 
             new OrangeBot(config);
         }
